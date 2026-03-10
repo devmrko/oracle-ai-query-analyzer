@@ -208,27 +208,22 @@ SELECT * FROM user_cloud_ai_profiles;
 
 DB1에서 ADB로의 DB Link를 생성합니다. ADB는 TCPS(TLS) 접속만 허용하므로 Wallet 설정이 필수입니다.
 
-> **상세 가이드**: [DB Link TCPS 가이드](dblink_tcps_guide.md) — Wallet 다운로드, 서버 배치, 3가지 생성 방법, 트러블슈팅
+> **TCPS DB Link 상세 가이드**: [DB Link TCPS 가이드](dblink_tcps_guide.md) — ADB → DB1 방향, Wallet 설정, 네트워크 ACL, 트러블슈팅
 
 ```sql
--- DB1에서 실행 (권장: TNS Descriptor 직접 지정)
-CREATE DATABASE LINK ADB_LINK
-    CONNECT TO admin IDENTIFIED BY "password"
-    USING '(DESCRIPTION=
-             (RETRY_COUNT=20)(RETRY_DELAY=3)
-             (ADDRESS=(PROTOCOL=TCPS)(PORT=1522)
-                      (HOST=adb.ap-seoul-1.oraclecloud.com))
-             (CONNECT_DATA=
-                (SERVICE_NAME=<고유ID>_<DB명>_medium.adb.oraclecloud.com))
-             (SECURITY=
-                (SSL_SERVER_DN_MATCH=YES)
-                (MY_WALLET_DIRECTORY=/opt/oracle/adb_wallet)))';
+-- ADB에서 실행 (권장: DBMS_CLOUD 사용)
+BEGIN
+    DBMS_CLOUD.CREATE_DATABASE_LINK(
+        db_link_name => 'DB1_LINK',
+        hostname     => '<db1_host>',
+        port         => 1521,
+        service_name => '<db1_service_name>',
+        username     => '<db1_user>',
+        password     => '<db1_password>'
+    );
+END;
+/
 ```
-
-핵심 사항:
-- `MY_WALLET_DIRECTORY`: DB1 서버에서 ADB Wallet(cwallet.sso)이 있는 경로
-- `PROTOCOL=TCPS`, `PORT=1522`: ADB 기본 TCPS 설정
-- `SERVICE_NAME`: Wallet의 `tnsnames.ora`에서 확인
 
 확인:
 
