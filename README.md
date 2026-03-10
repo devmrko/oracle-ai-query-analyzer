@@ -79,3 +79,4 @@ oracle-ai-query-analyzer/
 - **[종합 가이드](docs/overview.md)** — 처음 접하는 사람을 위한 전체 시스템 설명
 - [아키텍처 문서](docs/architecture.md) — 전체 설계, 컴포넌트 상세, 권한 요구사항
 - [ADB 설정 가이드](docs/adb_setup_and_flow.md) — AI Profile 설정, DB Link 구성, 트러블슈팅
+- [DB Link TCPS 가이드](docs/dblink_tcps_guide.md) — Wallet 기반 TCPS DB Link 생성 (ADB + ADG)
