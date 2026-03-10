@@ -88,17 +88,19 @@ DB1 서버의 `tnsnames.ora`를 수정하지 않고, DB Link에 전체 TNS 정�
 ```sql
 -- DB1에서 실행 (SYS 또는 권한이 있는 유저)
 CREATE DATABASE LINK ADB_LINK
-    CONNECT TO admin IDENTIFIED BY "Dhfkzmf##12345"
+    CONNECT TO <adb_user> IDENTIFIED BY "<adb_password>"
     USING '(DESCRIPTION=
              (RETRY_COUNT=20)(RETRY_DELAY=3)
              (ADDRESS=(PROTOCOL=TCPS)(PORT=1522)
-                      (HOST=adb.ap-seoul-1.oraclecloud.com))
+                      (HOST=adb.<region>.oraclecloud.com))
              (CONNECT_DATA=
-                (SERVICE_NAME=placeholder_service_id_medium.adb.oraclecloud.com))
+                (SERVICE_NAME=<고유ID>_<DB명>_medium.adb.oraclecloud.com))
              (SECURITY=
                 (SSL_SERVER_DN_MATCH=YES)
                 (MY_WALLET_DIRECTORY=/opt/oracle/adb_wallet)))';
 ```
+
+> **SERVICE_NAME 확인**: Wallet ZIP에 포함된 `tnsnames.ora`에서 원하는 서비스(high/medium/low)의 `service_name` 값을 복사하세요.
 
 **핵심 항목:**
 
@@ -133,7 +135,7 @@ ADB_MEDIUM =
     (ADDRESS=(PROTOCOL=TCPS)(PORT=1522)
              (HOST=adb.ap-seoul-1.oraclecloud.com))
     (CONNECT_DATA=
-      (SERVICE_NAME=placeholder_service_id_medium.adb.oraclecloud.com))
+      (SERVICE_NAME=<고유ID>_<DB명>_medium.adb.oraclecloud.com))
     (SECURITY=
       (SSL_SERVER_DN_MATCH=YES)
       (MY_WALLET_DIRECTORY=/opt/oracle/adb_wallet)))
@@ -143,7 +145,7 @@ ADB_MEDIUM =
 
 ```sql
 CREATE DATABASE LINK ADB_LINK
-    CONNECT TO admin IDENTIFIED BY "Dhfkzmf##12345"
+    CONNECT TO admin IDENTIFIED BY "<adb_password>"
     USING 'ADB_MEDIUM';
 ```
 
@@ -167,12 +169,12 @@ SSL_SERVER_DN_MATCH = YES
 ```sql
 -- MY_WALLET_DIRECTORY 없이 DB Link 생성
 CREATE DATABASE LINK ADB_LINK
-    CONNECT TO admin IDENTIFIED BY "Dhfkzmf##12345"
+    CONNECT TO admin IDENTIFIED BY "<adb_password>"
     USING '(DESCRIPTION=
              (ADDRESS=(PROTOCOL=TCPS)(PORT=1522)
                       (HOST=adb.ap-seoul-1.oraclecloud.com))
              (CONNECT_DATA=
-                (SERVICE_NAME=placeholder_service_id_medium.adb.oraclecloud.com))
+                (SERVICE_NAME=<고유ID>_<DB명>_medium.adb.oraclecloud.com))
              (SECURITY=(SSL_SERVER_DN_MATCH=YES)))';
 ```
 
