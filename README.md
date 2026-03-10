@@ -80,3 +80,4 @@ oracle-ai-query-analyzer/
 - [아키텍처 문서](docs/architecture.md) — 전체 설계, 컴포넌트 상세, 권한 요구사항
 - [ADB 설정 가이드](docs/adb_setup_and_flow.md) — AI Profile 설정, DB Link 구성, 트러블슈팅
 - [DB Link TCPS 가이드](docs/dblink_tcps_guide.md) — ADB → DB1 TCPS DB Link 생성, Wallet 설정, 네트워크 ACL
+- [Exadata CA 인증서 + DB Link 가이드](docs/dblink_exa_ca_guide.md) — Exadata CA 인증서 추출 → Object Storage → ADB Wallet 등록 → TCPS DB Link
