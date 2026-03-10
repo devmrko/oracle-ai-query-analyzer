@@ -10,6 +10,7 @@
  * 변경이력:
  *   2026-03-03  초기 작성
  *   2026-03-04  Standby DB 지원 추가 (듀얼 모드)
+ *   2026-03-10  Case 4: ADG SQL Tuning Advisor 지원 (database_link_to)
  ******************************************************************************/
 
 -- ============================================================================
@@ -44,11 +45,12 @@ CREATE OR REPLACE PACKAGE query_analyzer AUTHID CURRENT_USER AS
     --   t_analysis_result 레코드
     ---------------------------------------------------------------------------
     FUNCTION collect_query_info(
-        p_sql_text      IN CLOB,
-        p_schema        IN VARCHAR2 DEFAULT NULL,
-        p_plan_format   IN VARCHAR2 DEFAULT 'ALL',
-        p_sql_id        IN VARCHAR2 DEFAULT NULL,
-        p_force_standby IN BOOLEAN  DEFAULT FALSE
+        p_sql_text        IN CLOB,
+        p_schema          IN VARCHAR2 DEFAULT NULL,
+        p_plan_format     IN VARCHAR2 DEFAULT 'ALL',
+        p_sql_id          IN VARCHAR2 DEFAULT NULL,
+        p_force_standby   IN BOOLEAN  DEFAULT FALSE,
+        p_primary_db_link IN VARCHAR2 DEFAULT NULL   -- Case 4: ADG Tuning 용 DB Link
     ) RETURN t_analysis_result;
 
     ---------------------------------------------------------------------------
@@ -101,6 +103,31 @@ CREATE OR REPLACE PACKAGE query_analyzer AUTHID CURRENT_USER AS
     FUNCTION get_tuning_advice(
         p_sql_text   IN CLOB,
         p_time_limit IN NUMBER DEFAULT 30
+    ) RETURN CLOB;
+
+    ---------------------------------------------------------------------------
+    -- get_tuning_advice_via_adg
+    --   ADG(Active Data Guard) 환경에서 Standby → Primary로 SQL Tuning
+    --   Advisor를 위임 실행. database_link_to 파라미터를 사용하여
+    --   Standby에서 명령을 발행하되 실제 분석은 Primary에서 수행.
+    --
+    -- Prerequisites:
+    --   - SYS 소유의 Private DB Link (Standby → Primary)
+    --   - DB Link 접속 유저: SYS$UMF
+    --   - Tuning Pack + Diagnostics Pack 라이선스
+    --
+    -- Parameters:
+    --   p_sql_text         : 분석 대상 SQL
+    --   p_primary_db_link  : Primary로의 DB Link명 (SYS 소유)
+    --   p_time_limit       : 튜닝 분석 제한 시간(초), 기본 30초
+    --
+    -- Returns:
+    --   CLOB (SQL Tuning Advisor 리포트 전문)
+    ---------------------------------------------------------------------------
+    FUNCTION get_tuning_advice_via_adg(
+        p_sql_text        IN CLOB,
+        p_primary_db_link IN VARCHAR2,
+        p_time_limit      IN NUMBER DEFAULT 30
     ) RETURN CLOB;
 
     ---------------------------------------------------------------------------
@@ -411,6 +438,58 @@ CREATE OR REPLACE PACKAGE BODY query_analyzer AS
     END get_tuning_advice;
 
     ---------------------------------------------------------------------------
+    -- get_tuning_advice_via_adg
+    --   ADG 환경: Standby에서 명령 발행, Primary에서 실제 분석 수행
+    --   database_link_to 파라미터로 Tuning Task를 Primary에 위임
+    ---------------------------------------------------------------------------
+    FUNCTION get_tuning_advice_via_adg(
+        p_sql_text        IN CLOB,
+        p_primary_db_link IN VARCHAR2,
+        p_time_limit      IN NUMBER DEFAULT 30
+    ) RETURN CLOB IS
+        v_task_name VARCHAR2(128);
+        v_task_gen  VARCHAR2(128);
+        v_report    CLOB;
+        v_sql_vc    VARCHAR2(32767);
+    BEGIN
+        v_task_gen := 'QA_ADG_' || TO_CHAR(SYSTIMESTAMP, 'YYYYMMDDHH24MISSFF2');
+        v_sql_vc  := DBMS_LOB.SUBSTR(p_sql_text, 32767, 1);
+
+        -- Tuning Task 생성 (database_link_to로 Primary에 위임)
+        v_task_name := DBMS_SQLTUNE.CREATE_TUNING_TASK(
+            sql_text         => v_sql_vc,
+            time_limit       => p_time_limit,
+            task_name        => v_task_gen,
+            description      => 'Query Analyzer ADG tuning task via ' || p_primary_db_link,
+            database_link_to => p_primary_db_link
+        );
+
+        -- Task 실행 (Standby에서 명령, Primary에서 수행)
+        DBMS_SQLTUNE.EXECUTE_TUNING_TASK(task_name => v_task_name);
+
+        -- 리포트 추출 (Primary에서 구성, Standby에서 조회)
+        v_report := DBMS_SQLTUNE.REPORT_TUNING_TASK(task_name => v_task_name);
+
+        -- Task 정리
+        BEGIN
+            DBMS_SQLTUNE.DROP_TUNING_TASK(task_name => v_task_name);
+        EXCEPTION
+            WHEN OTHERS THEN NULL;
+        END;
+
+        RETURN v_report;
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            BEGIN
+                DBMS_SQLTUNE.DROP_TUNING_TASK(task_name => v_task_gen);
+            EXCEPTION
+                WHEN OTHERS THEN NULL;
+            END;
+            RETURN 'SQL Tuning Advisor (ADG) 실행 실패: ' || SQLERRM;
+    END get_tuning_advice_via_adg;
+
+    ---------------------------------------------------------------------------
     -- is_standby_db
     --   V$DATABASE.DATABASE_ROLE이 'PRIMARY'가 아니면 Standby로 판별
     ---------------------------------------------------------------------------
@@ -551,11 +630,12 @@ CREATE OR REPLACE PACKAGE BODY query_analyzer AS
     --   Standby/Primary 듀얼 모드 지원
     ---------------------------------------------------------------------------
     FUNCTION collect_query_info(
-        p_sql_text      IN CLOB,
-        p_schema        IN VARCHAR2 DEFAULT NULL,
-        p_plan_format   IN VARCHAR2 DEFAULT 'ALL',
-        p_sql_id        IN VARCHAR2 DEFAULT NULL,
-        p_force_standby IN BOOLEAN  DEFAULT FALSE
+        p_sql_text        IN CLOB,
+        p_schema          IN VARCHAR2 DEFAULT NULL,
+        p_plan_format     IN VARCHAR2 DEFAULT 'ALL',
+        p_sql_id          IN VARCHAR2 DEFAULT NULL,
+        p_force_standby   IN BOOLEAN  DEFAULT FALSE,
+        p_primary_db_link IN VARCHAR2 DEFAULT NULL
     ) RETURN t_analysis_result IS
         v_result       t_analysis_result;
         v_stmt_id      VARCHAR2(60);
@@ -632,11 +712,23 @@ CREATE OR REPLACE PACKAGE BODY query_analyzer AS
                 v_result.index_info  := '[]';
             END IF;
 
-            -- 5) Tuning Advisor는 Standby에서 실행 불가 → 스킵 메시지
-            v_result.tuning_advice :=
-                '[Standby DB] SQL Tuning Advisor는 Read-Only 환경에서 실행할 수 없습니다. '
-                || 'Primary DB에서 analyze_query를 실행하면 튜닝 조언을 받을 수 있습니다. '
-                || '(사용된 SQL_ID: ' || v_sql_id || ')';
+            -- 5) Tuning Advisor: ADG DB Link가 있으면 Primary에 위임, 없으면 스킵
+            IF p_primary_db_link IS NOT NULL THEN
+                -- Case 4: ADG를 통해 Primary에서 Tuning Advisor 실행
+                v_result.tuning_advice := get_tuning_advice_via_adg(
+                    p_sql_text        => p_sql_text,
+                    p_primary_db_link => p_primary_db_link,
+                    p_time_limit      => 30
+                );
+            ELSE
+                -- Case 3: Standby에서 실행 불가 → 스킵 메시지
+                v_result.tuning_advice :=
+                    '[Standby DB] SQL Tuning Advisor는 Read-Only 환경에서 실행할 수 없습니다. '
+                    || 'Primary DB에서 analyze_query를 실행하면 튜닝 조언을 받을 수 있습니다. '
+                    || 'p_primary_db_link 파라미터로 Primary DB Link를 지정하면 '
+                    || 'ADG를 통해 Tuning Advisor를 실행할 수 있습니다. '
+                    || '(사용된 SQL_ID: ' || v_sql_id || ')';
+            END IF;
 
         ELSE
             -----------------------------------------------------------------

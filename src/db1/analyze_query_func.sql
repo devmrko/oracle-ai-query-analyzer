@@ -27,18 +27,27 @@
  *       p_force_standby => 'Y'
  *   ) FROM DUAL;
  *
+ *   -- Case 4: ADG + SQL Tuning Advisor (Standby에서 Primary로 위임)
+ *   SELECT analyze_query(
+ *       p_sql_text        => 'SELECT ...',
+ *       p_force_standby   => 'Y',
+ *       p_primary_db_link => 'LNK_TO_PRI'
+ *   ) FROM DUAL;
+ *
  * 변경이력:
  *   2026-03-03  초기 작성
  *   2026-03-04  Standby DB 지원 (p_sql_id, p_force_standby 추가, tuning_advice ADB 전달)
+ *   2026-03-10  Case 4: ADG SQL Tuning Advisor 지원 (p_primary_db_link 추가)
  ******************************************************************************/
 
 CREATE OR REPLACE FUNCTION analyze_query(
-    p_sql_text      IN CLOB,
-    p_schema        IN VARCHAR2 DEFAULT NULL,
-    p_timeout       IN NUMBER   DEFAULT 60,      -- 최대 대기 시간(초)
-    p_db_link       IN VARCHAR2 DEFAULT 'ADB_LINK',  -- DB Link명
-    p_sql_id        IN VARCHAR2 DEFAULT NULL,    -- V$SQL의 SQL_ID (Standby용)
-    p_force_standby IN VARCHAR2 DEFAULT 'N'      -- 'Y'이면 Standby 경로 강제
+    p_sql_text        IN CLOB,
+    p_schema          IN VARCHAR2 DEFAULT NULL,
+    p_timeout         IN NUMBER   DEFAULT 60,      -- 최대 대기 시간(초)
+    p_db_link         IN VARCHAR2 DEFAULT 'ADB_LINK',  -- ADB로의 DB Link명
+    p_sql_id          IN VARCHAR2 DEFAULT NULL,    -- V$SQL의 SQL_ID (Standby용)
+    p_force_standby   IN VARCHAR2 DEFAULT 'N',     -- 'Y'이면 Standby 경로 강제
+    p_primary_db_link IN VARCHAR2 DEFAULT NULL     -- Case 4: Standby→Primary DB Link (ADG Tuning)
 ) RETURN CLOB
 IS
     v_info        query_analyzer.t_analysis_result;
@@ -57,10 +66,11 @@ BEGIN
     -- 1) 로컬에서 실행계획 + 메타데이터 수집
     ---------------------------------------------------------------------------
     v_info := query_analyzer.collect_query_info(
-        p_sql_text      => p_sql_text,
-        p_schema        => p_schema,
-        p_sql_id        => p_sql_id,
-        p_force_standby => (UPPER(p_force_standby) = 'Y')
+        p_sql_text        => p_sql_text,
+        p_schema          => p_schema,
+        p_sql_id          => p_sql_id,
+        p_force_standby   => (UPPER(p_force_standby) = 'Y'),
+        p_primary_db_link => p_primary_db_link
     );
 
     ---------------------------------------------------------------------------

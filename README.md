@@ -25,13 +25,14 @@ SELECT analyze_query(
 ) FROM DUAL;
 ```
 
-## 3가지 적용 케이스
+## 4가지 적용 케이스
 
 | 케이스 | 설명 | 라이선스 | 설명 | 플로우 | 샘플 결과 |
 |--------|------|---------|------|--------|-----------|
 | **Case 1** | AI 직접 분석 (Tuning Pack 없이) | EE 기본 | [설명](docs/case1_ai_direct_analysis.md) | [플로우](docs/flow_case1.md) | [리포트](docs/report_001.md) |
 | **Case 2** | 튜닝팩 사용 (Advisor + AI 종합) | Tuning Pack | [설명](docs/case2_with_tuning_pack.md) | [플로우](docs/flow_case2.md) | [리포트](docs/report_002.md) |
 | **Case 3** | Standby DB (Read-Only) 환경 | EE 기본 | [설명](docs/case3_standby_db.md) | [플로우](docs/flow_case3.md) | [리포트](docs/report_003.md) |
+| **Case 4** | ADG + SQL Tuning Advisor | Tuning + Diag Pack | [설명](docs/case4_adg_sqltune.md) | [플로우](docs/flow_case4.md) | - |
 
 - **Case 2 vs 3 비교**: [report_comparison.md](docs/report_comparison.md)
 
@@ -40,6 +41,7 @@ SELECT analyze_query(
 ```
 oracle-ai-query-analyzer/
 ├── docs/
+│   ├── overview.md                  # 종합 가이드 (처음 읽을 문서)
 │   ├── architecture.md              # 시스템 아키텍처
 │   ├── adb_setup_and_flow.md        # ADB 설정 + DB Link 연동 가이드
 │   ├── case1_ai_direct_analysis.md  # Case 1 설명
@@ -48,6 +50,8 @@ oracle-ai-query-analyzer/
 │   ├── flow_case1.md                # Case 1 End-to-End 플로우
 │   ├── flow_case2.md                # Case 2 End-to-End 플로우
 │   ├── flow_case3.md                # Case 3 End-to-End 플로우
+│   ├── case4_adg_sqltune.md         # Case 4 설명
+│   ├── flow_case4.md                # Case 4 End-to-End 플로우
 │   ├── report_001.md                # 샘플 리포트 (Case 1)
 │   ├── report_002.md                # 샘플 리포트 (Case 2)
 │   ├── report_003.md                # 샘플 리포트 (Case 3)
@@ -58,7 +62,8 @@ oracle-ai-query-analyzer/
 │   │   ├── analyze_query_func.sql   #   래퍼 함수 (사용자 인터페이스)
 │   │   ├── test_connection.py       #   배포/테스트 스크립트
 │   │   ├── test_standby_mode.py     #   Standby 기능 테스트
-│   │   └── test_sqltune.py          #   Tuning Pack 권한 테스트
+│   │   ├── test_sqltune.py          #   Tuning Pack 권한 테스트
+│   │   └── test_adg_sqltune.py     #   Case 4: ADG SQL Tuning Advisor 테스트
 │   ├── adb/                         # ADB 배포용
 │   │   ├── tables.sql               #   요청/결과/로그 테이블
 │   │   ├── ai_profile_setup.sql     #   Credential + AI Profile
@@ -71,5 +76,6 @@ oracle-ai-query-analyzer/
 
 ## 참고
 
+- **[종합 가이드](docs/overview.md)** — 처음 접하는 사람을 위한 전체 시스템 설명
 - [아키텍처 문서](docs/architecture.md) — 전체 설계, 컴포넌트 상세, 권한 요구사항
 - [ADB 설정 가이드](docs/adb_setup_and_flow.md) — AI Profile 설정, DB Link 구성, 트러블슈팅
